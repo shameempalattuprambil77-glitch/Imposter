@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Imposter Game</title>
+    <meta name="theme-color" content="#bda059">
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Socket.IO client -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+
+   <div class="background-sky">
+        <div class="cloud c1"></div>
+        <div class="cloud c2"></div>
+        <div class="cloud c3"></div>
+    </div>
+    <div id="theme-toggle-wrapper" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
+        <button id="theme-toggle-btn" class="btn btn-small" style="width: auto; padding: 8px 16px; background: var(--panel-bg); color: var(--text-color); border: 2px solid var(--wood-brown); box-shadow: 3px 3px 0 var(--shadow-dark);">
+            🌙 Dark
+        </button>
+    </div>
+    <br><br><br><br>
+
+    <div class="container">
+
+        <!-- START -->
+        <div id="screen-start" class="panel">
+            <h1 class="game-title">IMPOSTER GAME</h1>
+            <div class="loading-spinner hidden" id="global-loader"></div>
+            <button class="btn btn-green" onclick="nav('screen-create')">Create Room</button>
+            <button class="btn btn-blue" onclick="nav('screen-join')">Join Room</button>
+        </div>
+
+        <!-- CREATE -->
+        <div id="screen-create" class="panel hidden">
+            <h2>NEW ROOM</h2>
+            <div class="input-group">
+                <label>Name:</label>
+                <input type="text" id="c-name" maxlength="12" placeholder="Steve...">
+            </div>
+            <div class="setting-row">
+                <div class="setting-col">
+                    <label>Imposters</label>
+                    <select id="c-imp"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
+                </div>
+                <div class="setting-col">
+                    <label>Cycles</label>
+                    <select id="c-cyc"><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
+                </div>
+            </div>
+            <button class="btn btn-green" onclick="createRoom()">Craft Room</button>
+            <button class="btn btn-red" onclick="nav('screen-start')">Back</button>
+        </div>
+
+        <!-- JOIN -->
+        <div id="screen-join" class="panel hidden">
+            <h2>JOIN ROOM</h2>
+            <div class="input-group">
+                <label>Name:</label>
+                <input type="text" id="j-name" maxlength="12" placeholder="Alex...">
+            </div>
+            <div class="input-group">
+                <label>Room ID:</label>
+                <input type="number" id="j-room" placeholder="123456">
+            </div>
+            <button class="btn btn-blue" onclick="joinRoom()">Connect</button>
+            <button class="btn btn-red" onclick="nav('screen-start')">Back</button>
+        </div>
+
+        <!-- LOBBY -->
+        <div id="screen-lobby" class="panel hidden">
+            <h2>ROOM: <span id="lobby-code" class="highlight">...</span></h2>
+            <div class="scroll-box" id="lobby-list"></div>
+            <button id="btn-ready" class="btn btn-green" onclick="toggleReady()">I AM READY</button>
+            <p class="status-text">Waiting for players...</p>
+        </div>
+
+        <!-- REVEAL -->
+        <div id="screen-reveal" class="panel hidden">
+            <h2>Remember the word</h2>
+            <p>Hold the block to reveal!</p>
+            <div class="card-scene" onmousedown="hold(true)" onmouseup="hold(false)" ontouchstart="hold(true)" ontouchend="hold(false)">
+                <div class="card-obj">
+                    <div class="face face-front">?</div>
+                    <div class="face face-back" id="secret-word">...</div>
+                </div>
+            </div>
+            <div id="reveal-timer" class="timer-big">20s</div>
+        </div>
+
+        <!-- GAME (typing phase) -->
+        <div id="screen-game" class="panel hidden">
+            <div class="cycle-badge">Cycle <span id="game-cycle">1</span></div>
+
+            <div class="latest-word-banner">
+                <small>LATEST WORD:</small>
+                <div id="latest-word-text">---</div>
+                <div id="latest-player-name" class="tiny-name"></div>
+            </div>
+
+            <details class="history-dropdown">
+                <summary>View Word History</summary>
+                <div class="history-content" id="game-history"></div>
+            </details>
+
+            <div class="game-input-area">
+                <p id="game-turn-txt" class="turn-txt">...</p>
+                <input type="text" id="game-input" placeholder="Type your clue..." autocomplete="off">
+                <button id="btn-submit" class="btn btn-green" onclick="submitWord()">SEND</button>
+            </div>
+
+            <div id="game-over-section" class="hidden">
+                <h2 style="color:#c0392b; margin-top:20px;">GAME OVER</h2>
+                <p>Typing phase finished.</p>
+                <button id="btn-goto-vote" class="btn btn-blue" onclick="goToVote()">GO TO VOTE</button>
+                <p id="vote-wait-status" class="tiny-text">Waiting for others...</p>
+            </div>
+        </div>
+
+        <!-- VOTE -->
+        <div id="screen-vote" class="panel hidden">
+            <h2>VOTE IMPOSTER</h2>
+            <p>Tap a player block to select:</p>
+            <div id="vote-area" class="grid-2"></div>
+            <button id="btn-vote-confirm" class="btn btn-red" disabled onclick="confirmVote()">CONFIRM VOTE</button>
+        </div>
+
+        <!-- RESULT -->
+        <div id="screen-result" class="panel hidden">
+            <h1>REPORT</h1>
+            <div id="result-content" class="scroll-box"></div>
+            <button class="btn btn-blue" onclick="playAgain()">PLAY AGAIN</button>
+        </div>
+
+    </div>
+
+    <!-- CHAT AREA -->
+    <div id="chat-area" class="hidden">
+        <div id="chat-msgs"></div>
+        <div class="chat-controls">
+            <select id="chat-target"><option value="ALL">All</option></select>
+            <input type="text" id="chat-txt" placeholder="Say something...">
+            <button class="btn btn-small btn-blue" onclick="sendChat()">></button>
+        </div>
+    </div>
+
+    <!-- REJOIN MODAL -->
+    <div id="rejoin-modal" class="modal hidden">
+        <div class="modal-content">
+            <p class="welcome-text">Welcome back, <span id="rejoin-name"></span>!</p>
+            <p class="room-text">Room: <span id="rejoin-room"></span></p>
+            <p class="question-text">Do you want to rejoin the game?</p>
+            <div class="button-group">
+                <button id="rejoin-yes" class="btn btn-green btn-small">Yes</button>
+                <button id="rejoin-no" class="btn btn-red btn-small">No</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+  </html>
